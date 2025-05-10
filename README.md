@@ -1,3 +1,3 @@
 # Projects
-1. task-manager_no_template (с нуля)
-2. TemplateAlanLatte (на шаблоне)
+1 этап. task-manager_no_template (реализация с нуля)
+2 этап. TemplateAlanLatte (реализация в шаблоне)
