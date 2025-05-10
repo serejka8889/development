@@ -1,0 +1,84 @@
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - API__INSTANCE_APP_NAME=template-api
+      - POSTGRES__HOST=${POSTGRES__HOST}
+      - POSTGRES__PORT=${POSTGRES__PORT}
+    depends_on:
+      - postgres
+    ports:
+      - "${API__PORT}:8000"
+    command: bash -c "sleep 5 && uvicorn app:create_app --host 0.0.0.0 --port 8000"
+
+  postgres:
+    build:
+      context: .
+      dockerfile: docker/postgresql/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES__PASSWORD}
+      - POSTGRES_USER=${POSTGRES__USER}
+      - POSTGRES_DB=${POSTGRES__DATABASE_NAME}
+    ports:
+      - "${POSTGRES__PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data/pgdata
+    command: -c 'max_connections=500'
+
+  yoyo-migrations:
+    build:
+      context: .
+      dockerfile: docker/migrations/Dockerfile
+    restart: on-failure
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    command: ["sh", "-c", "sleep 5 && yoyo apply --database \"$POSTGRES_DATABASE_URL\" /migrations"]
+
+  grafana:
+    build:
+      context: .
+      dockerfile: docker/grafana/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - ./docker/grafana/provisioning/:/etc/grafana/provisioning/
+
+  prometheus:
+    image: prom/prometheus:latest
+    user: root
+    env_file:
+      - .env
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./src/prometheus:/prometheus
+    depends_on:
+      - api
+    ports:
+      - "9000:9090"
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+
+volumes:
+  postgres-data:
+
+
+networks:
+  default:
+    driver: bridge
